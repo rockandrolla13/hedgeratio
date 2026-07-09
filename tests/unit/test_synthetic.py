@@ -4,7 +4,7 @@ import pytest
 
 from hrl.data.synthetic import _REGISTRY, SyntheticSample, generate
 
-IMPLEMENTED = ["S1", "S2", "S3"]
+IMPLEMENTED = ["S1", "S2", "S3", "S7", "S7b"]
 STUBBED = ["S4", "S5", "S6"]
 
 

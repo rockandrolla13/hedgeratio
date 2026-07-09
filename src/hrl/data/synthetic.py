@@ -85,9 +85,51 @@ def s6_pci(n: int, rng: np.random.Generator) -> SyntheticSample:
     raise NotImplementedError("s6_pci")
 
 
+def s7_leverage(n: int, rng: np.random.Generator, nu: float = 3.0,
+                lev_z: float = 4.0) -> SyntheticSample:
+    """S7: leverage points -- fat tails in the REGRESSOR, not the noise (Mechanism 5, spec 5.1).
+
+    Delta x_t ~ t(nu) scaled to the realistic daily increment vol _X_STEP_SD; eps_t is Gaussian
+    and beta is constant. Extreme x increments create high-leverage rows H_t = [1, x_t] that WoLF
+    (an e_t-only weight) cannot see. `outlier_times` marks the leverage steps (|standardized
+    Delta x| > lev_z)."""
+    dx_scale = _X_STEP_SD / np.sqrt(nu / (nu - 2.0))
+    dx = dx_scale * rng.standard_t(nu, n)
+    x = _X_START + np.cumsum(dx)
+    alpha_true = np.full(n, _ALPHA)
+    beta_true = np.full(n, _BETA)
+    eps = rng.normal(0.0, _EPS_SD, n)
+    y = alpha_true + beta_true * x + eps
+    z_dx = dx / dx_scale
+    lev = np.flatnonzero(np.abs(z_dx) > lev_z)
+    return SyntheticSample(y=y, x=x, beta_true=beta_true, alpha_true=alpha_true,
+                           outlier_times=lev)
+
+
+def s7b_leverage(n: int, rng: np.random.Generator, nu: float = 3.0,
+                 lev_z: float = 4.0, eps_scale: float = 100.0) -> SyntheticSample:
+    """S7b variant: simultaneous extreme Delta x AND extreme eps at the leverage times.
+
+    Worst case for a bounded-influence filter: a genuine leverage point co-timed with a
+    measurement outlier of scale eps_scale * _EPS_SD (sign-aligned with the jump)."""
+    dx_scale = _X_STEP_SD / np.sqrt(nu / (nu - 2.0))
+    dx = dx_scale * rng.standard_t(nu, n)
+    x = _X_START + np.cumsum(dx)
+    alpha_true = np.full(n, _ALPHA)
+    beta_true = np.full(n, _BETA)
+    eps = rng.normal(0.0, _EPS_SD, n)
+    z_dx = dx / dx_scale
+    lev = np.flatnonzero(np.abs(z_dx) > lev_z)
+    eps[lev] += np.sign(z_dx[lev]) * eps_scale * _EPS_SD
+    y = alpha_true + beta_true * x + eps
+    return SyntheticSample(y=y, x=x, beta_true=beta_true, alpha_true=alpha_true,
+                           outlier_times=lev)
+
+
 _REGISTRY = {
     "S1": s1_static, "S2": s2_drift, "S3": s3_heavy,
     "S4": s4_stochvol, "S5": s5_breaks, "S6": s6_pci,
+    "S7": s7_leverage, "S7b": s7b_leverage,
 }
 
 
