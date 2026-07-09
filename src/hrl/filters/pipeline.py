@@ -23,6 +23,7 @@ from ..config import PipelineConfig
 from ..core.context import StepContext
 from ..core.protocols import StateSpaceModel, StepStage
 from ..core.results import FilterResult
+from .stages.adaptive_r import AdaptiveRStage, make_noise_model
 from .stages.gaussian import GaussianUpdateStage, PredictStage
 from .stages.wolf import make_weight_fn
 
@@ -55,13 +56,26 @@ class Pipeline:
         """Build a Pipeline (stages in canonical order) from a PipelineConfig."""
         if cfg.anchor != "none":
             raise NotImplementedError("anchored transition arrives in Phase 5")
-        if cfg.noise_model != "fixed":
-            raise NotImplementedError("adaptive R arrives in Phase 4")
         if cfg.detector != "none":
             raise NotImplementedError("changepoint layer arrives in Phase 6")
 
+        # VB-AKF and WoLF both iterate over the innovation within a step; the design forbids
+        # co-iterating them (their fixed points fight). EWMA/GARCH compose with WoLF fine --
+        # EWMA on the weighted innovation is in fact the intended composition.
+        if cfg.noise_model == "vbakf" and cfg.weight_fn != "none":
+            raise ValueError(
+                "VB-AKF and WoLF must not co-iterate within a step; "
+                "use noise_model='vbakf' with weight_fn='none' (or EWMA/GARCH with WoLF)"
+            )
+
         weight_fn = make_weight_fn(cfg.weight_fn, cfg)
-        stages: list[StepStage] = [PredictStage(), GaussianUpdateStage(weight_fn=weight_fn)]
+        noise_model = make_noise_model(cfg.noise_model, cfg)
+        # Canonical order: predict -> (adaptive R_t) -> update. The adaptive-R stage lands at
+        # position 2, between the transition and the innovation, so R_t is set before e_t.
+        stages: list[StepStage] = [PredictStage()]
+        if noise_model is not None:
+            stages.append(AdaptiveRStage(noise_model))
+        stages.append(GaussianUpdateStage(weight_fn=weight_fn))
         return cls(stages, model, r0=cfg.r, p0=cfg.p0)
 
     def run(self, y, x) -> FilterResult:
