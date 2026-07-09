@@ -4,7 +4,7 @@ import pytest
 
 from hrl.data.synthetic import _REGISTRY, SyntheticSample, generate
 
-IMPLEMENTED = ["S1", "S2", "S3", "S4"]
+IMPLEMENTED = ["S1", "S2", "S3", "S4", "S7", "S7b"]
 STUBBED = ["S5", "S6"]
 
 
@@ -63,6 +63,6 @@ def test_s4_exposes_regime_labels():
 
 @pytest.mark.parametrize("name", STUBBED)
 def test_stubbed_dgps_raise(name):
-    """S4-S6 are not implemented yet and say so."""
+    """S5-S6 are not implemented yet and say so."""
     with pytest.raises(NotImplementedError):
         generate(name, n_steps=100, seed=0)
