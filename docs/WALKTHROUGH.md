@@ -186,6 +186,27 @@ How to read this:
 
 ---
 
+### 5.3 Phase 3 — WoLF robust weighting (outlier defence)
+Implemented:
+- `IMQWeight` (primary, the paper's inverse-multiquadric weight), plus `HuberWeight` and
+  `StudentTWeight` as references, injected into `GaussianUpdateStage`.
+- Locked invariants: weights lie in `(0, 1]` and shrink with the innovation; `c → ∞` exactly
+  recovers the vanilla filter; the state update is **bounded/redescending** (a huge outlier
+  moves the estimate *less*, not more), whereas the vanilla filter's response grows linearly.
+
+**Validation (S3: heavy tails + 1% contamination, 60 Monte Carlo paths):**
+
+| config | mean β RMSE | win-rate vs vanilla | median weight at the outliers |
+|---|---|---|---|
+| vanilla | 0.0573 | — | 1.000 (ignores nothing) |
+| **WoLF-IMQ (c=3)** | **0.0420** | **0.90** | 0.555 |
+| Huber | 0.0406 | 0.83 | 0.297 |
+| Student-t | 0.0415 | 0.87 | 0.452 |
+
+WoLF cuts hedge-ratio error by **~27%** and wins on **90%** of paths. Crucially, the median
+weight it applies *exactly at the known contamination times* is ~0.55 — direct evidence it is
+down-weighting the outliers, not just getting lucky. This is acceptance criterion #2.
+
 ## 6. How to run it yourself
 
 ```bash
@@ -195,7 +216,7 @@ pytest -q                    # run the test suite
 python experiments/phase2_baselines.py   # regenerate the Phase-2 table
 ```
 
-The test suite currently reports **38 passed, 3 skipped** (the 3 skips are integration gates
+The test suite currently reports **43 passed, 3 skipped** (the 3 skips are integration gates
 that need later phases).
 
 ---
@@ -204,7 +225,7 @@ that need later phases).
 
 | Phase | Adds | Scenario it proves out |
 |---|---|---|
-| **3** | WoLF robust weighting (down-weight outliers) | S3 |
+| **3** ✅ | WoLF robust weighting (down-weight outliers) | S3 |
 | **4** | Adaptive measurement noise (slow down in vol spikes) | S4 |
 | **5** | AR(1) anchoring toward a slow Johansen/TLS estimate | S2/S6 |
 | **6** | Changepoint detection + covariance reset | S5 |
@@ -221,6 +242,6 @@ known.
 ## 8. Current status
 
 - Design: complete (ideate → architect → design → scaffold).
-- Code: Phases 1–2 implemented and tested; Phases 3–9 scaffolded with `TODO`s.
-- Tests: **38 passing, 3 skipped**, no warnings.
+- Code: Phases 1–3 implemented and tested; Phases 4–9 scaffolded with `TODO`s.
+- Tests: **43 passing, 3 skipped**, no warnings.
 - Data: **100% synthetic, seeded, reproducible. No real market data yet.**

@@ -24,6 +24,7 @@ from ..core.context import StepContext
 from ..core.protocols import StateSpaceModel, StepStage
 from ..core.results import FilterResult
 from .stages.gaussian import GaussianUpdateStage, PredictStage
+from .stages.wolf import make_weight_fn
 
 _TRANSITION_STAGES = {"predict"}
 
@@ -58,10 +59,9 @@ class Pipeline:
             raise NotImplementedError("adaptive R arrives in Phase 4")
         if cfg.detector != "none":
             raise NotImplementedError("changepoint layer arrives in Phase 6")
-        if cfg.weight_fn != "none":
-            raise NotImplementedError("WoLF weighting arrives in Phase 3")
 
-        stages: list[StepStage] = [PredictStage(), GaussianUpdateStage(weight_fn=None)]
+        weight_fn = make_weight_fn(cfg.weight_fn, cfg)
+        stages: list[StepStage] = [PredictStage(), GaussianUpdateStage(weight_fn=weight_fn)]
         return cls(stages, model, r0=cfg.r, p0=cfg.p0)
 
     def run(self, y, x) -> FilterResult:
