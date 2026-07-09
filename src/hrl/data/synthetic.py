@@ -4,7 +4,7 @@ S1 static | S2 slow drift | S3 heavy tails/contamination | S4 stochastic vol |
 S5 structural breaks | S6 partial cointegration. x_t is a scaled random walk (log-price-like).
 Each generator is seeded and returns a SyntheticSample.
 
-Phase 1 implements S1-S3 (per plan section 11 step 1). S4-S6 remain stubs.
+Phase 1 implements S1-S3; Phase 4 adds S4 (stochastic vol). S5-S6 remain stubs.
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -28,6 +28,7 @@ class SyntheticSample:
     alpha_true: np.ndarray
     break_times: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
     outlier_times: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
+    regime: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))  # 0=calm,1=stress
 
 
 def _x_series(n: int, rng: np.random.Generator) -> np.ndarray:
@@ -70,9 +71,55 @@ def s3_heavy(n: int, rng: np.random.Generator, nu: float = 4.0,
                            outlier_times=np.flatnonzero(outlier_mask))
 
 
-def s4_stochvol(n: int, rng: np.random.Generator) -> SyntheticSample:
-    """GARCH(1,1) or two-state (calm/stress x5) volatility. (Phase 4.)"""
-    raise NotImplementedError("s4_stochvol")
+def s4_stochvol(n: int, rng: np.random.Generator, p_switch: float = 0.05,
+                stress_scale: float = 5.0) -> SyntheticSample:
+    """Two-state (calm/stress) volatility around a constant beta -- the adaptive-R stress test.
+
+    Beta and alpha are constant; the observation-noise sd switches between calm (``_EPS_SD``)
+    and stress (``stress_scale * _EPS_SD``, default 5x) via a persistent two-state Markov chain
+    with per-step switch probability ``p_switch`` (~5% => stress windows of ~20 steps). The
+    regime labels (0=calm, 1=stress) are returned so downstream tests can score per regime.
+    """
+    x = _x_series(n, rng)
+    alpha_true = np.full(n, _ALPHA)
+    beta_true = np.full(n, _BETA)
+    regime = np.zeros(n, dtype=int)
+    state = 0
+    for t in range(n):
+        if t > 0 and rng.random() < p_switch:
+            state = 1 - state
+        regime[t] = state
+    sd = np.where(regime == 1, stress_scale * _EPS_SD, _EPS_SD)
+    y = alpha_true + beta_true * x + rng.normal(0.0, 1.0, n) * sd
+    return SyntheticSample(y=y, x=x, beta_true=beta_true, alpha_true=alpha_true,
+                           regime=regime)
+
+
+def s4_garch(n: int, rng: np.random.Generator, alpha: float = 0.10,
+             beta: float = 0.88) -> SyntheticSample:
+    """GARCH(1,1) observation-volatility variant of S4 (optional; not in the registry).
+
+    Constant beta with a GARCH(1,1) noise variance whose unconditional level matches
+    ``_EPS_SD**2``. The top-tercile-volatility steps are labelled stress (regime=1) so the same
+    per-regime metrics apply as for the two-state version.
+    """
+    x = _x_series(n, rng)
+    alpha_true = np.full(n, _ALPHA)
+    beta_true = np.full(n, _BETA)
+    uncond = _EPS_SD ** 2
+    omega = uncond * (1.0 - alpha - beta)
+    sigma2 = np.empty(n)
+    eps = np.empty(n)
+    s2 = uncond
+    for t in range(n):
+        e = np.sqrt(s2) * rng.normal()
+        sigma2[t] = s2
+        eps[t] = e
+        s2 = omega + alpha * e * e + beta * s2
+    y = alpha_true + beta_true * x + eps
+    regime = (sigma2 > np.quantile(sigma2, 2.0 / 3.0)).astype(int)
+    return SyntheticSample(y=y, x=x, beta_true=beta_true, alpha_true=alpha_true,
+                           regime=regime)
 
 
 def s5_breaks(n: int, rng: np.random.Generator) -> SyntheticSample:

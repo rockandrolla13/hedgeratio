@@ -1,11 +1,11 @@
-"""Phase 1 tests for the synthetic DGPs (S1-S3 implemented)."""
+"""Phase 1/4 tests for the synthetic DGPs (S1-S4 implemented)."""
 import numpy as np
 import pytest
 
 from hrl.data.synthetic import _REGISTRY, SyntheticSample, generate
 
-IMPLEMENTED = ["S1", "S2", "S3"]
-STUBBED = ["S4", "S5", "S6"]
+IMPLEMENTED = ["S1", "S2", "S3", "S4"]
+STUBBED = ["S5", "S6"]
 
 
 def test_registry_covers_all_dgps():
@@ -50,6 +50,15 @@ def test_s3_marks_outliers():
     """S3 records the contamination indices."""
     s = generate("S3", n_steps=2000, seed=0)
     assert s.outlier_times.size > 0
+
+
+def test_s4_exposes_regime_labels():
+    """S4 returns 0/1 regime labels with both calm and stress windows, constant true beta."""
+    s = generate("S4", n_steps=2000, seed=0)
+    assert s.regime.shape == (2000,)
+    assert set(np.unique(s.regime)).issubset({0, 1})
+    assert s.regime.min() == 0 and s.regime.max() == 1     # both regimes occur
+    assert np.ptp(s.beta_true) == 0.0                       # beta is constant in S4
 
 
 @pytest.mark.parametrize("name", STUBBED)
