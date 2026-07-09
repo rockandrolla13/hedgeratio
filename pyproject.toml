@@ -1,0 +1,35 @@
+[project]
+name = "hrl"
+version = "0.1.0"
+description = "Robust hedge-ratio filtering framework: composite generalised-Bayes Kalman pipeline for mid-frequency pairs trading."
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "pydantic",
+    "pyyaml",
+    "typer",
+    "statsmodels",   # Johansen (coint_johansen) + adfuller for spread metrics
+    "matplotlib",    # report figures
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "hypothesis", "ruff"]
+
+[project.scripts]
+hrl = "hrl.experiments.cli:app"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

@@ -1,0 +1,28 @@
+# One ExperimentConfig == one reproducible run. Loaded at the CLI entry point.
+seed: 0
+
+dgp:
+  name: S1          # S1 static | S2 drift | S3 heavy-tail | S4 stoch-vol | S5 breaks | S6 pci
+  n_steps: 2500
+  n_paths: 200
+
+pipeline:
+  # ablation == which stages are active, in canonical order
+  stages: [predict, update]
+  weight_fn: imq    # imq | huber | student_t | none
+  noise_model: fixed  # fixed | ewma | garch | vbakf
+  detector: none    # none | cusum | bocpd
+  anchor: none      # none | johansen | tls
+  c: 3.0
+  lam: 0.94
+  phi: 0.99
+  q_beta: 1.0e-5
+  r_floor: 1.0e-8
+  hazard: 0.002     # ~1/500 days
+
+backtest:
+  enter_z: 2.0
+  exit_z: 0.5
+  cost_bps: 5.0
+
+output_dir: results
